@@ -1,0 +1,51 @@
+# Xcode user data (contains local paths)
+**/xcuserdata/
+xcuserdata/
+*.xcuserstate
+
+# Xcode build
+**/DerivedData/
+**/dgph
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+**/*sync/
+.sconsign.dblite
+.tags*
+**/.vagrant/
+Icon?
+**/.generated/
+
+# CocoaPods
+**/Pods/
+**/.symlinks/
+Podfile.lock
+
+# Flutter generated (CONTAINS LOCAL PATHS WITH USERNAME)
+Flutter/Generated.xcconfig
+Flutter/.last_build_id
+Flutter/ephemeral/
+Flutter/App.framework/
+Flutter/Flutter.framework/
+Flutter/Flutter.podspec
+Flutter/app.flx
+Flutter/app.zip
+Flutter/flutter_assets/
+Flutter/flutter_export_environment.sh
+
+# Generated plugin registrant
+Runner/GeneratedPluginRegistrant.*
+
+# Service definitions
+ServiceDefinitions.json
+
+# Profile build
+profile
+
+# Exceptions
+!default.mode1v3
+!default.mode2v3
+!default.pbxuser
+!default.perspectivev3

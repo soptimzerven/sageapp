@@ -1,0 +1,18 @@
+# Flutter ephemeral (CONTAINS LOCAL PATHS WITH USERNAME)
+**/Flutter/ephemeral/
+
+# Generated plugin registrant
+Flutter/GeneratedPluginRegistrant.swift
+
+# CocoaPods
+**/Pods/
+Podfile.lock
+
+# Xcode user data
+**/xcuserdata/
+**/dgph
+*.xcuserstate
+**/DerivedData/
+
+# Build
+build/

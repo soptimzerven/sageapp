@@ -1,0 +1,168 @@
+# ============================================
+# ANDROID BUILD & SIGN WORKFLOW
+# Builds signed APK and AAB on every push
+# ============================================
+# 
+# REQUIRED GITHUB SECRETS:
+# - KEYSTORE_BASE64: Base64-encoded .jks keystore file
+# - KEYSTORE_PASSWORD: Password for the keystore
+# - KEY_ALIAS: Alias of the signing key
+# - KEY_PASSWORD: Password for the signing key
+#
+# This workflow:
+# 1. Decodes keystore from secrets at runtime
+# 2. Signs APK and AAB with the provided keystore
+# 3. Deletes keystore after build completes
+# 4. Never exposes secrets in logs
+# ============================================
+
+name: Build Android APK & AAB
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:  # Allow manual trigger
+
+# Prevent concurrent builds
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Signed Android Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ========================================
+      # CHECKOUT & SETUP
+      # ========================================
+      
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter Installation
+        run: |
+          flutter --version
+          flutter doctor -v
+
+      # ========================================
+      # DECODE KEYSTORE (Secure)
+      # ========================================
+      
+      - name: Decode Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          # Decode keystore to a temporary location
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload-keystore.jks"
+          
+          # Verify keystore was created (without exposing content)
+          if [ -f "$RUNNER_TEMP/upload-keystore.jks" ]; then
+            echo "✓ Keystore decoded successfully"
+          else
+            echo "✗ Failed to decode keystore"
+            exit 1
+          fi
+
+      - name: Create key.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # Create key.properties file for Gradle
+          cat > android/key.properties << EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=$RUNNER_TEMP/upload-keystore.jks
+          EOF
+          
+          echo "✓ key.properties created"
+
+      # ========================================
+      # BUILD
+      # ========================================
+      
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Build Release APK
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Build Release AAB (App Bundle)
+        run: flutter build appbundle --release --no-tree-shake-icons
+
+      # ========================================
+      # CLEANUP SENSITIVE FILES
+      # ========================================
+      
+      - name: Secure Cleanup
+        if: always()
+        run: |
+          # Remove keystore file
+          rm -f "$RUNNER_TEMP/upload-keystore.jks"
+          
+          # Remove key.properties
+          rm -f android/key.properties
+          
+          echo "✓ Sensitive files cleaned up"
+
+      # ========================================
+      # UPLOAD ARTIFACTS
+      # ========================================
+      
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30
+          if-no-files-found: error
+
+      # ========================================
+      # BUILD SUMMARY
+      # ========================================
+      
+      - name: Build Summary
+        run: |
+          echo "## 🎉 Build Completed Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts Generated:" >> $GITHUB_STEP_SUMMARY
+          echo "- **APK**: \`app-release.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **AAB**: \`app-release.aab\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### File Sizes:" >> $GITHUB_STEP_SUMMARY
+          echo "- APK: $(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          echo "- AAB: $(du -h build/app/outputs/bundle/release/app-release.aab | cut -f1)" >> $GITHUB_STEP_SUMMARY
